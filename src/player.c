@@ -29,7 +29,7 @@ void player_update(u8 pad)
         if (x) --x;
         hero.facing = 2;
     } else if ((pad & (PAD_LEFT | PAD_RIGHT)) == PAD_RIGHT) {
-        if (x < WORLD_WIDTH - 16) ++x;
+        if (x < world_width() - 16) ++x;
         hero.facing = 3;
     } else if ((pad & (PAD_UP | PAD_DOWN)) == PAD_UP) {
         if (y) --y;
@@ -49,9 +49,9 @@ void player_update(u8 pad)
 void player_draw(u16 camera)
 {
     u8 x = (u8)(hero.x - camera);
-    u8 tile = 32 + hero.facing * 8;
+    u8 tile = hero.facing * 16;
     u8 i;
-    if (hero.moving && (hero.step & 8)) tile += 4;
+    if (hero.moving) tile += 4 + ((hero.step >> 3) % 3) * 4;
     for (i = 0; i < 4; ++i) {
         oam[i * 4] = hero.y - 1 + ((i & 2) ? 8 : 0);
         oam[i * 4 + 1] = tile + i;

@@ -1,0 +1,47 @@
+[
+  {
+    "song": "title",
+    "samples": 887902,
+    "seconds": 20.133832199546486,
+    "peak": 0.2290496826171875,
+    "rms": 0.077492029273188,
+    "loop": true,
+    "oneShot": false
+  },
+  {
+    "song": "overworld",
+    "samples": 704451,
+    "seconds": 15.973945578231293,
+    "peak": 0.2601165771484375,
+    "rms": 0.07804921190613,
+    "loop": true,
+    "oneShot": false
+  },
+  {
+    "song": "glassmere",
+    "samples": 1159409,
+    "seconds": 26.29045351473923,
+    "peak": 0.2451019287109375,
+    "rms": 0.07639761960762786,
+    "loop": true,
+    "oneShot": false
+  },
+  {
+    "song": "battle",
+    "samples": 513662,
+    "seconds": 11.647664399092971,
+    "peak": 0.21356201171875,
+    "rms": 0.07691933497915829,
+    "loop": true,
+    "oneShot": false
+  },
+  {
+    "song": "victory",
+    "samples": 220141,
+    "seconds": 4.991859410430839,
+    "peak": 0.2335968017578125,
+    "rms": 0.0691090327509093,
+    "loop": false,
+    "oneShot": true
+  }
+]

@@ -1,158 +1,159 @@
-# Rune Walk
+# Rune Walk — The Waking Stones
 
-A small, original NES homebrew foundation for a future RPG. Walk a red-cloaked
-hero through a six-screen overworld of roads, trees, water, rocks, and rune stones.
-The D-pad moves in four directions; the camera follows horizontally. Trees,
-water, rocks, and the world edges block movement. Runes are decorative for now.
-A/B/Start/Select have no action. There is no audio or save system yet.
+An original NTSC NES fantasy RPG opening chapter, built with cc65 and 6502
+assembly. A copper-cloaked traveler arrives in Bracken as the old rune stones
+begin to wake. Speak with the keeper, cross the river country, and confront the
+three memories beneath Glassmere.
 
-## Download the ROM
+**[Download the playable ROM](https://github.com/DukeSkellington/RuneWalkRPG/raw/refs/heads/main/dist/rune-walk.nes)**
 
-The prebuilt ROM is checked in at [`dist/rune-walk.nes`](dist/rune-walk.nes).
-Open that file on GitHub and choose **Download raw file**, then open it in Mesen.
-The source build writes `build/rune-walk.nes`; refresh the copy in `dist/` when
-publishing a new build.
+The checked-in `dist/rune-walk.nes` is the complete game image. On GitHub, open
+that file and choose **Download raw file**. Open the downloaded `.nes` in Mesen
+or copy it to an EverDrive N8 Pro SD card. No patching or additional assets needed.
+
+![Rune Walk title and game screenshots](docs/evidence/screenshots.png)
+
+## What's in this chapter
+
+- Original beveled title lettering, moonlit title scene, stars and water shimmer.
+- Four background palettes, detailed metatiles, copper-roof architecture, and a
+  four-direction traveler with a standing pose and three walk poses per direction.
+- An eight-screen, 2048×240 field, two river crossings, a settlement, and a ruin.
+- Smooth horizontal scrolling, terrain and NPC collision, and bounded cameras.
+- Keeper dialogue, a journal, one collectible chest, healing tonics and an objective.
+- Three original guardians with attack, defend and tonic commands; health,
+  experience, leveling, victory, recoverable defeat and a chapter conclusion.
+- Original title and field compositions, ruin/battle arrangements, a one-shot
+  victory fanfare, and sound effects on the actual NES APU.
+- Vblank-safe tile/attribute streaming, palette fades and immediate battle cursors.
+
+This is a playable introductory chapter, **not a completed commercial RPG**.
+There is no battery save or Continue option. Reset starts a new journey.
+
+## Controls and route
+
+| Input | Exploration | Menus / battle |
+| --- | --- | --- |
+| D-pad | Move; one axis at a time | Up/down selects battle command |
+| A | Speak / examine / enter nearby passage | Confirm / advance |
+| B | — | Close dialogue/journal; quick defend in battle |
+| Start | Journal, stats and objective | Close journal; begin on title |
+
+The traveler moves one pixel per NTSC frame. Horizontal input has priority when
+both axes are held; opposite directions on the same axis cancel. Collision uses
+an inset feet box, allowing a small, intentional head overlap at obstacles.
+
+1. Start a new journey; dismiss the introduction with A or B.
+2. Walk a short distance east to Bracken's stair marker and press A.
+3. Speak to the keeper standing above the plaza. The keeper restores health and
+   supplies up to three tonics. Leave using A at the west stair.
+4. Follow the main road east across **two bridges**. Examine the marked stair
+   beneath the broken columns at Glassmere with A.
+5. In the ruin, an old chest north of the entry contains one tonic. Continue east
+   and examine the sleeping stone from the road below it.
+6. Defeat its three guardians, using tonics when needed. Examine the stone once
+   more to finish the chapter. Defeat returns you safely to Bracken.
+
+Start opens the journal at any time during exploration. A uses a tonic there
+when health is missing. The keeper offers a final conversation after completion.
 
 ## Build
 
-Requirements: **cc65 V2.19 or newer**, GNU Make, and Python 3. No downloaded game
-assets, npm packages, or proprietary SDKs are needed to build the ROM. All
-placeholder graphics are original and generated from `tools/generate_chr.py`.
-
-On Debian/Ubuntu, install `cc65`, `make`, and `python3` with your package manager;
-on macOS, Homebrew provides `cc65`, `make`, and `python`. On Windows use those
-tools in WSL, or a cc65 installation plus GNU Make and Python on PATH.
-
-From the checkout root:
+Requirements: **cc65 V2.19 or newer**, GNU Make and Python 3. No graphics editor,
+Node.js, emulator or downloaded assets are needed to produce the ROM. All artwork,
+fonts, map layouts, compositions and conversion sources are in this repository.
 
 ```sh
 make
 make check
 ```
 
-The output is **`build/rune-walk.nes`**, ready to load as a ROM. `make check`
-validates its size, header, vectors, and nonblank CHR ROM; it does not emulate it.
-`make clean` removes generated build files. Override `PYTHON=python` if needed.
+Output: `build/rune-walk.nes`. `make check` validates the iNES header, ROM size,
+vectors, original asset schemas, objective accessibility and internal-RAM budget.
+`make release` checks and copies the new ROM into `dist/`. `make clean` removes
+only generated build files. Use `PYTHON=python` if your Python executable differs.
 
-For a source installation of the exact toolchain used here:
+Install cc65, Make and Python with your platform package manager (Debian/Ubuntu,
+Homebrew, or WSL). For the exact source toolchain used for these builds:
 
 ```sh
 git clone --depth 1 --branch V2.19 https://github.com/cc65/cc65.git /tmp/cc65
 git -C /tmp/cc65 rev-parse HEAD
-# Expected: 555282497c3ecf8b313d87d5973093af19c35bd5
+# 555282497c3ecf8b313d87d5973093af19c35bd5
 make -C /tmp/cc65 -j4
 make CC65_HOME=/tmp/cc65 check
 ```
 
-`CC65_HOME` must point to the cc65 installation/source root containing `bin/`
-and `lib/`. Otherwise the build uses `cl65` on PATH. This cloud environment
-already has the tested toolchain at `/workspace/toolchains/cc65`, detected by
-the Makefile. Reuse the existing checkout; a separate Git worktree is unnecessary.
+`CC65_HOME` points to a root containing `bin/` and `lib/`; otherwise `cl65` on
+PATH is used. The existing cloud installation `/workspace/toolchains/cc65` is
+recognized automatically. Reuse the existing checkout; a worktree is unnecessary.
 
-## Cartridge and hardware target
+## Test and capture
 
-| Property | Value |
-| --- | --- |
-| CPU/video target | Original NTSC NES, Ricoh 2A03 / 2C02 |
-| Cartridge | NROM-256, mapper 0 |
-| PRG ROM | 32 KiB at `$8000–$FFFF` |
-| CHR ROM | 8 KiB, background and sprites use pattern table 0 |
-| Mirroring | Vertical (two nametables side by side) |
-| RAM | Console's internal 2 KiB only; no PRG RAM, battery, or trainer |
-| File | iNES 1.0, 40,976 bytes, NTSC TV-system flag |
-
-This uses the standard NROM configuration supported by the **EverDrive N8 Pro**.
-Copy `build/rune-walk.nes` to its SD card, boot the cartridge using its installed
-OS, select the ROM, and launch it. No special mapper file, save file, or expansion
-audio is required. Test on an NTSC NES; PAL timing is outside this target.
-Physical NES/EverDrive operation has not been verified here.
-
-## Test in Mesen
-
-Use a current [Mesen](https://www.mesen.ca/) desktop release (the maintained
-[SourMesen/Mesen2](https://github.com/SourMesen/Mesen2) project).
-
-1. Build the ROM, then open `build/rune-walk.nes` using Mesen's **File → Open**.
-   Use NTSC region and standard speed. Configure controller port 1 as an NES
-   controller and bind its D-pad. Disable cheats and rewind during timing checks.
-2. Cold boot/reset: expect a grassy map and hero on the road near the left edge.
-   Release all buttons: the hero stays still. Reset should restore the spawn.
-3. Test every D-pad direction. Movement is one pixel per frame, with no diagonal
-   movement. Horizontal input takes priority; opposite buttons on an axis cancel.
-4. Walk left to the boundary and right along the road to the far boundary (about
-   25 seconds). The hero stays near screen center while the map scrolls; near
-   each end the camera stops and the hero approaches the edge.
-5. Reverse direction repeatedly, especially near each 256-pixel screen crossing.
-   Watch for stale tiles, seams, flickering, and camera jumps. Return all the way
-   to the start. The map should match its first appearance.
-6. Approach trees, rocks, and water from all sides. The hero's feet should stop
-   against obstacles. The head can overlap them slightly: collision intentionally
-   uses an inset feet box. Walk around corners to check for snagging or tunneling.
-7. Open Mesen's debugger/PPU viewer. Confirm mapper 0, vertical mirroring, populated
-   CHR patterns, two nametables, and four visible hero sprites. The streamed tile
-   column should update ahead of the camera. With a write breakpoint on `$2007`,
-   runtime tile writes should occur during vblank; boot-time writes occur with
-   rendering disabled. Enable available invalid PPU access diagnostics.
-8. Repeat cold boot and the traversal with randomized power-on RAM if your Mesen
-   version provides that option. No state should depend on uncleared RAM.
-
-Keep `build/rune-walk.dbg` beside the ROM for Mesen's cc65 debug-symbol loading
-(or import it through the debugger). `.lbl` and `.map` are also generated. Exact
-debugger menu wording varies by Mesen version. Mesen itself was not run in this
-cloud environment; the checklist above is the remaining desktop acceptance test.
-
-## Automated execution test (optional)
-
-Node.js 22+ and JSNES 2.1.0 provide a headless regression check. The emulator is
-a development test dependency only and never enters the ROM:
+Optional execution tests need Node.js 22+ and the locked JSNES 2.1.0 dependency:
 
 ```sh
-make check
-npm install --prefix build/emulator --no-audit --no-fund --save-exact jsnes@2.1.0
-node tools/smoke.mjs
+npm ci --prefix tests --ignore-scripts
+make smoke
+make audio
 ```
 
-The test boots the actual ROM, supplies controller input, verifies four-direction
-movement, water/tree collision, exact movement speed, both camera clamps, a full
-out-and-back traversal, and opposite-direction input. It compares every displayed
-nametable tile with the map and checks runtime PPU writes against NTSC vblank.
-It writes a screenshot to `build/smoke.ppm`. An alternate installed JSNES directory
-can be supplied as the first argument. This supplements Mesen and physical tests.
+`make smoke` drives the **actual ROM with controller input**, through the complete
+chapter and defeat recovery. It checks every displayed exploration tile and
+attribute, both camera limits, movement speed, water collision, chest persistence,
+defend, healing, leveling, ending and journal. Screenshots are written as
+`build/*.ppm` and results as `build/test-results.json`.
 
-## Code layout and extension points
+`make audio` selects each score through its debug symbol, records the real APU
+output to `build/music-*.wav`, checks non-silence and signal range, verifies music
+loops and verifies that the fanfare ends. Audio selection is a test fixture, not
+an extra in-game sound-test menu. `JSNES_ROOT` can select another installed copy.
 
-- `src/startup.s`: reset, RAM initialization, interrupt vectors, OAM DMA, and
-  vblank transfers. Custom startup avoids the default cc65 NES runtime's
-  cartridge-RAM assumptions. NMI never calls C or touches cc65's temporary state.
-- `src/video.c`, `include/nes.h`: palette, boot-time nametable fill, and a frame
-  packet with one streamed column. C publishes `ready` last; NMI clears it only
-  after consuming the packet. Main waits before touching it again.
-- `src/world.c`: six authored 16×15-metatile screens and terrain/collision lookup.
-  Each metatile is 16×16 pixels. `.`, `W`, `T`, `+`, `O`, `R` mean grass, water,
-  tree, path, rock, and rune. All rows must remain exactly 16 characters long.
-- `src/player.c`: world position, input interpretation, feet-box collision,
-  facing, walk animation, and the four-sprite 16×16 hero.
-- `src/camera.c`: bounded world-to-screen camera and circular nametable streaming.
-- `src/input.c`: serial controller read. DMC is disabled, avoiding its controller
-  read interference; adding sample audio will require a safe controller routine.
-- `tools/generate_chr.py`: editable pixel art; emits CHR ROM deterministically.
-- `cfg/nrom.cfg`: ROM/RAM budgets enforced by the linker. OAM is `$0200–$02FF`,
-  game data `$0300–$05FF`, and the C software stack `$0600–$07FF`. The hardware
-  stack uses `$0100–$01FF`; zero-page runtime temporaries start at `$0002`.
+For desktop and hardware checks, follow [the Mesen checklist](docs/MESEN_TESTING.md).
+Mesen and original hardware have **not** been run in this cloud session.
 
-The map is 1536×240 pixels: horizontal scrolling is deliberate, with full
-four-direction movement inside its height. The two nametables form a 512-pixel
-ring. At each eight-pixel camera crossing, the next offscreen column is prepared
-and uploaded during vblank. All terrain uses one background palette, so column
-streaming needs no attribute changes. NMI can safely retain the old frame packet
-if game logic misses a deadline. Do not teleport the camera using the streaming
-path: it assumes movement of at most one tile column per update.
+## Listen
 
-For towns/dungeons, add a map descriptor (dimensions, terrain data, spawn points,
-and exits) behind the `world_*` API. A map transition should disable rendering,
-refill both nametables, reset camera/player state, and then resume frame packets.
-For combat, add a game-mode dispatcher in `main.c`, with separate exploration,
-menu, and battle update/draw modules. Reuse the input and vblank packet boundary;
-keep encounter rules and battle state out of the interrupt handler. Vertical
-scrolling, per-terrain palettes, dialogue, and larger transfers will need an
-expanded VRAM queue and a measured vblank budget.
+Actual ROM APU captures, encoded to MP3 for convenient listening:
+
+- [Title — The Waking Stones](docs/evidence/music-title.mp3)
+- [Overworld — The Old Road](docs/evidence/music-overworld.mp3)
+- [Glassmere](docs/evidence/music-glassmere.mp3)
+- [Battle](docs/evidence/music-battle.mp3)
+- [Victory](docs/evidence/music-victory.mp3)
+
+The editable scores are in `assets/music.py`. The title and field have 16-bar
+forms with a returning motif, harmonic progression and contrasting middle section.
+The ruin and battle tracks are arrangements of that material. Playback uses two
+pulse voices, triangle bass and noise percussion. Sound effects temporarily own
+the noise channel, then return it to the score. DPCM and expansion audio are unused.
+
+## Cartridge and architecture
+
+**NROM-256 / mapper 0**, 32 KiB PRG ROM, 8 KiB CHR ROM, vertical mirroring,
+iNES 1.0 NTSC flag, 40,976-byte file, no trainer, battery or PRG RAM. This is a
+standard cartridge configuration supported by the EverDrive N8 Pro. The chapter
+fits comfortably without bank switching; MMC3 would add unnecessary complexity
+at this scale. The target is an original North American NTSC NES, not PAL timing.
+
+| Files | Responsibility |
+| --- | --- |
+| `src/startup.s`, `cfg/nrom.cfg` | Reset, RAM layout, vectors, bounded NMI transfers |
+| `src/video.c` | Frame packet, scene loads, four palettes, fades and text wrapping |
+| `src/world.c`, `tools/generate_world.py` | Field / Bracken / Glassmere, collision, packed attributes |
+| `src/player.c`, `src/camera.c`, `src/input.c` | Traveler, animation, movement and camera ring |
+| `src/game.c` | Mode dispatcher, interactions, objective, progression and recovery |
+| `src/ui.c`, `src/combat.c` | Title, journal, dialogue, enemy art, turn resolution |
+| `src/audio.s`, `assets/music.py` | NMI-safe APU playback and editable original scores |
+| `assets/`, `tools/generate_*.py` | Editable pixel art, font, score and map converters |
+| `tests/`, `tools/smoke.mjs` | Locked emulator dependency and actual-ROM tests |
+
+The NMI never calls C or uses its zero-page temporaries. Main builds a complete
+packet, publishes `ready` last, and waits for NMI ownership to end before changing
+it. Audio runs every NMI, including while maps load with rendering disabled.
+Terrain and palette attributes stream together into a 512-pixel nametable ring.
+Map changes explicitly refill the ring at the new camera position.
+
+See [technical limitations](docs/TECHNICAL_LIMITATIONS.md), [testing report](docs/TESTING_REPORT.md),
+[art direction](docs/ART_DIRECTION.md), [development plan](docs/DEVELOPMENT_PLAN.md),
+[quality review](QUALITY_REVIEW.md) and [next steps](NEXT_STEPS.md).

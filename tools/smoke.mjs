@@ -1,108 +1,112 @@
-/* Execute the real ROM in JSNES 2.1.0 (optional Node.js test dependency).
- * Usage: node tools/smoke.mjs /path/to/node_modules/jsnes
- * No game state is injected: movement uses controller port 1 throughout. */
+/* Actual-ROM regression playthrough. JSNES_ROOT selects a JSNES 2.1.0 install. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
-import {pathToFileURL} from 'node:url';
-const root = path.resolve(process.argv[2] || 'build/emulator/node_modules/jsnes');
-const {NES, Controller} = await import(pathToFileURL(path.join(root, 'src/index.js')));
-const labels = Object.fromEntries(fs.readFileSync('build/rune-walk.lbl', 'utf8')
-  .split('\n').map(line => /^al ([0-9A-F]+) \.(\S+)/i.exec(line))
-  .filter(Boolean).map(m => [m[2], parseInt(m[1], 16)]));
-const rows = [...fs.readFileSync('src/world.c', 'utf8').matchAll(/"([.TW+OR]{16})"/g)].map(m => m[1]);
-assert.equal(rows.length, 90);
-const kind = {'.': 0, W: 1, T: 2, '+': 3, O: 4, R: 5};
-function expectedTile(x, y) {
-  const cellX = x >> 1;
-  const c = cellX >= 96 ? 'T' : rows[(cellX >> 4) * 15 + (y >> 1)][cellX & 15];
-  return kind[c] * 4 + ((y & 1) << 1) + (x & 1);
-}
-let framebuffer;
-const nes = new NES({onFrame: pixels => {framebuffer = pixels.slice();}, onAudioSample() {}});
-nes.loadROM(fs.readFileSync('build/rune-walk.nes', 'binary'));
-const byte = name => nes.cpu.mem[labels[name]];
-const word = name => byte(name) | (nes.cpu.mem[labels[name] + 1] << 8);
-const position = () => [word('_hero'), nes.cpu.mem[labels._hero + 2]];
-let checkedFrames = 0, writes = 0, maxVblankLine = 0;
-const originalScroll = nes.ppu.scrollWrite.bind(nes.ppu);
-nes.ppu.scrollWrite = function(value) {
-  const second = !this.firstWrite;
-  originalScroll(value);
-  if (!second || !this.f_bgVisibility) return;
-  assert(this.scanline < 20, 'scroll update exceeded NTSC vblank');
-  maxVblankLine = Math.max(maxVblankLine, this.scanline);
-  const camera = word('_camera_x');
-  assert.equal(this.regHT * 8 + this.regFH + this.regH * 256, camera & 511);
-  const first = camera >> 3;
-  const last = (camera + 255) >> 3;
-  for (let x = first; x <= last; x++) {
-    const physical = x & 63;
-    const base = physical & 32 ? 0x2400 : 0x2000;
-    for (let y = 0; y < 30; y++) {
-      assert.equal(this.vramMem[base + y * 32 + (physical & 31)], expectedTile(x, y),
-        `stale visible tile: camera=${camera}, world tile=${x},${y}`);
-    }
+import {boot,Controller as C} from '../tests/harness.mjs';
+const h=boot(); const {nes,byte,word,frames,hold,press,position}=h;
+const maps=JSON.parse(fs.readFileSync('build/world.json','utf8'));
+const palettes=[0,0,0,0,0,1,1,2,3,3,3,1,3,3,1,3,1,1,3,1,1,1,3,0];
+let packets=0,writes=0,latestLine=0;
+const scroll=nes.ppu.scrollWrite.bind(nes.ppu);
+nes.ppu.scrollWrite=function(v) {
+ const second=!this.firstWrite; scroll(v);
+ if(!second || byte('_loading') || byte('_render_mask')!==0x1e || byte('_mode')!==1) return;
+ assert(this.scanline<20,'scroll overran NTSC vblank'); latestLine=Math.max(latestLine,this.scanline);
+ const camera=word('_camera_x'),map=maps[byte('_area')];
+ assert.equal(this.regHT*8+this.regFH+this.regH*256,camera&511);
+ for(let x=camera>>3;x<=((camera+255)>>3);x++) {
+  const p=x&63,base=p&32?0x2400:0x2000;
+  for(let y=0;y<30;y++) {
+   const id=map[y>>1][x>>1];
+   const expected=id*4+((y&1)<<1)+(x&1);
+   assert.equal(this.vramMem[base+y*32+(p&31)],expected,`tile camera=${camera}, area=${byte('_area')}, x=${x}, y=${y}`);
+   const attr=this.vramMem[base+0x3c0+(y>>2)*8+((p&31)>>2)];
+   const shift=((y&2)?4:0)+((x&2)?2:0);
+   assert.equal((attr>>shift)&3,palettes[id],`attribute camera=${camera}, x=${x}, y=${y}`);
   }
-  checkedFrames++;
+ }
+ packets++;
 };
-const originalVRAM = nes.ppu.vramWrite.bind(nes.ppu);
-nes.ppu.vramWrite = function(value) {
-  if (this.f_bgVisibility) {
-    assert(this.scanline < 20, 'VRAM write outside NTSC vblank');
-    writes++;
-  }
-  originalVRAM(value);
+const write=nes.ppu.vramWrite.bind(nes.ppu);
+nes.ppu.vramWrite=function(v) {
+ if(this.f_bgVisibility) { assert(this.scanline<20,'rendering-time VRAM write'); writes++; }
+ write(v);
 };
-function frames(count) {for (let i = 0; i < count; i++) nes.frame();}
-function hold(button, count) {
-  nes.buttonDown(1, button); frames(count); nes.buttonUp(1, button); frames(2);
+function settle() {frames(90);}
+function tap(button) {press(button);settle();}
+function shot(n) {h.screenshot(n);}
+function atMode(m) {assert.equal(byte('_mode'),m,JSON.stringify(h.state()));}
+frames(180);atMode(0);shot('title');
+assert.equal(byte('_audio_current'),0);assert(h.samples.some(v=>Math.abs(v)>0.05),'title audio is silent');
+assert(nes.papu.square1.isEnabled && nes.papu.square2.isEnabled && nes.papu.triangle.isEnabled);
+tap(C.BUTTON_START);atMode(2);shot('intro');tap(C.BUTTON_A);atMode(1);shot('field');
+// One pixel/frame and collision, before accepting the chapter objective.
+hold(C.BUTTON_LEFT,200);assert.equal(position()[0],14);
+hold(C.BUTTON_RIGHT,178);assert.equal(position()[0],192);
+tap(C.BUTTON_A);assert.equal(byte('_area'),1);atMode(1);shot('town');
+hold(C.BUTTON_RIGHT,128);assert.equal(position()[0],176);
+tap(C.BUTTON_A);atMode(2);assert.equal(byte('_quest'),1);shot('keeper');tap(C.BUTTON_B);
+hold(C.BUTTON_LEFT,160);assert.equal(position()[0],16);tap(C.BUTTON_A);
+assert.equal(byte('_area'),0);assert.equal(position()[0],208);
+// Opposite directions cancel without introducing diagonal speed.
+const before=position();
+nes.buttonDown(1,C.BUTTON_LEFT); nes.buttonDown(1,C.BUTTON_RIGHT); frames(20);
+nes.buttonUp(1,C.BUTTON_LEFT); nes.buttonUp(1,C.BUTTON_RIGHT); frames(3);
+assert.deepEqual(position(),before);
+// River crossing and scroll seam reversals, with exact fixed-speed movement.
+hold(C.BUTTON_RIGHT,420);assert.equal(position()[0],628);shot('river');
+hold(C.BUTTON_RIGHT,40);assert.equal(position()[0],668);
+hold(C.BUTTON_UP,40);assert.equal(position()[1],104,'bridge keeps feet out of the river');
+hold(C.BUTTON_DOWN,40); // opposite river bank clamps the feet back to the road
+while(position()[1]>112) hold(C.BUTTON_UP,1);
+while(position()[1]<112) hold(C.BUTTON_DOWN,1);
+hold(C.BUTTON_RIGHT,500);assert.equal(position()[0],1168);shot('highlands');
+hold(C.BUTTON_LEFT,400);assert.equal(position()[0],768);
+hold(C.BUTTON_RIGHT,864);assert.equal(position()[0],1632);
+hold(C.BUTTON_RIGHT,500);assert.equal(position()[0],2018);assert.equal(word('_camera_x'),1792);
+shot('field-east');hold(C.BUTTON_LEFT,386);assert.equal(position()[0],1632);
+tap(C.BUTTON_A);atMode(1);assert.equal(byte('_area'),2);shot('ruin');
+// Approach sleeping rune; interaction from the road starts a fixed guardian fight.
+hold(C.BUTTON_RIGHT,64);hold(C.BUTTON_UP,40);assert.equal(position()[1],88);
+const beforeChest=byte('_tonics');tap(C.BUTTON_A);assert.equal(byte('_tonics'),beforeChest+1);tap(C.BUTTON_B);
+tap(C.BUTTON_A);assert.equal(byte('_tonics'),beforeChest+1,'chest can only be collected once');tap(C.BUTTON_B);
+hold(C.BUTTON_DOWN,24);hold(C.BUTTON_RIGHT,240);assert.equal(position()[0],352);
+tap(C.BUTTON_A);atMode(4);assert.equal(byte('_enemy'),0);shot('battle');
+const battleCheckpoint=JSON.parse(JSON.stringify(nes.toJSON()));
+const hp0=byte('_hp');tap(C.BUTTON_B);assert.equal(byte('_hp'),hp0-1,'defend mitigates damage');
+assert.equal(byte('_combat_phase'),1);tap(C.BUTTON_A);
+// Finish all three battles using real menu input, healing as needed.
+for(let foe=0;foe<3;foe++) {
+ assert.equal(byte('_enemy'),foe);
+ let turns=0;
+ while(byte('_combat_phase')!==2) {
+  assert(++turns<15,'battle did not resolve');
+  if(byte('_combat_phase')===1) {tap(C.BUTTON_A);continue;}
+  // At low health, select TONIC. Otherwise select ATTACK.
+  const desired=byte('_hp')<12 && byte('_tonics')?2:0;
+  while(byte('_combat_selection')!==desired) tap(C.BUTTON_DOWN);
+  tap(C.BUTTON_A);
+  assert.notEqual(byte('_combat_phase'),3,'playthrough unexpectedly defeated');
+ }
+ shot(`victory-${foe}`);tap(C.BUTTON_A);atMode(1);
+ assert.equal(byte('_guardians'),foe+1);
+ if(foe<2) tap(C.BUTTON_A);
 }
-frames(120);
-assert.deepEqual(position(), [48, 112], 'boot position');
-assert.equal(nes.ppu.f_bgVisibility, 1);
-assert.equal(nes.ppu.f_spVisibility, 1);
-hold(Controller.BUTTON_LEFT, 16); // clear the conifers above the spawn point
-hold(Controller.BUTTON_UP, 300);
-assert.equal(position()[1], 8, 'top tree collision');
-hold(Controller.BUTTON_DOWN, 104);
-assert.equal(position()[1], 112, 'downward movement');
-hold(Controller.BUTTON_LEFT, 100);
-assert.equal(position()[0], 14, 'left tree collision');
-assert.equal(word('_camera_x'), 0, 'left camera clamp');
-// Water occupies x=144..191, y=48..95. Approach its lower edge.
-hold(Controller.BUTTON_RIGHT, 146);
-assert.equal(position()[0], 160);
-hold(Controller.BUTTON_UP, 80);
-assert.equal(position()[1], 88, 'water collision');
-hold(Controller.BUTTON_DOWN, 24);
-assert.equal(position()[1], 112);
-const startX = position()[0];
-hold(Controller.BUTTON_RIGHT, 400);
-assert.equal(position()[0], startX + 400, 'one pixel per NTSC frame including streaming');
-hold(Controller.BUTTON_RIGHT, 1300);
-assert.equal(position()[0], 1506, 'right boundary collision');
-assert.equal(word('_camera_x'), 1280, 'right camera clamp');
-hold(Controller.BUTTON_LEFT, 1700);
-assert.equal(position()[0], 14, 'return trip across ring-buffer seams');
-assert.equal(word('_camera_x'), 0);
-// Simultaneous horizontal directions must cancel.
-nes.buttonDown(1, Controller.BUTTON_RIGHT);
-nes.buttonDown(1, Controller.BUTTON_LEFT);
-frames(20);
-assert.equal(position()[0], 14);
-nes.buttonUp(1, Controller.BUTTON_RIGHT);
-nes.buttonUp(1, Controller.BUTTON_LEFT);
-hold(Controller.BUTTON_RIGHT, 430);
-assert(writes > 1000 && checkedFrames > 3000, 'streaming checks actually ran');
-// Portable screenshot, useful in CI without a browser or display server.
-const rgb = Buffer.alloc(256 * 240 * 3);
-for (let i = 0; i < framebuffer.length; i++) {
-  rgb[i * 3] = framebuffer[i] & 255;
-  rgb[i * 3 + 1] = (framebuffer[i] >> 8) & 255;
-  rgb[i * 3 + 2] = (framebuffer[i] >> 16) & 255;
+assert(byte('_level')>=2,'experience did not advance level');
+tap(C.BUTTON_A);atMode(5);assert.equal(byte('_quest'),2);shot('ending');tap(C.BUTTON_A);
+assert.equal(byte('_area'),1);tap(C.BUTTON_START);atMode(3);shot('journal');tap(C.BUTTON_B);atMode(1);
+// Restore a real emulator checkpoint (not injected game variables), then lose
+// by defending repeatedly. No reward or quest completion should be granted.
+nes.fromJSON(battleCheckpoint);frames(3);
+let defeatTurns=0;
+while(byte('_combat_phase')!==3) {
+ assert(++defeatTurns<60,'defeat did not resolve');
+ if(byte('_combat_phase')===1) tap(C.BUTTON_A);
+ else tap(C.BUTTON_B);
 }
-fs.writeFileSync('build/smoke.ppm', Buffer.concat([Buffer.from('P6\n256 240\n255\n'), rgb]));
-console.log(`PASS: boot, four directions, collision, camera clamps, full return trip, opposite inputs`);
-console.log(`PASS: ${checkedFrames} displayed packets checked against map; ${writes} streamed tile writes`);
-console.log(`PASS: VRAM/scroll updates inside NTSC vblank (latest scroll: line ${maxVblankLine} of 20)`);
+assert.equal(byte('_hp'),0);shot('defeat');tap(C.BUTTON_A);
+assert.equal(byte('_area'),1);assert.equal(byte('_hp'),byte('_max_hp'));
+assert.equal(byte('_guardians'),0);atMode(1);
+assert(packets>3000 && writes>10000,'timing/streaming checks did not execute');
+console.log(`PASS: complete chapter by controller input, keeper objective, 3 enemies, defend, tonics, leveling, ending, journal, one-time chest, defeat recovery`);
+console.log(`PASS: ${packets} map packets: every visible tile AND attribute; ${writes} vblank VRAM writes; latest scroll line ${latestLine}/20`);
+fs.writeFileSync('build/test-results.json',JSON.stringify({packets,writes,latestLine,state:h.state()},null,2));

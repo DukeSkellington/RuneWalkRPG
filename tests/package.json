@@ -1,0 +1,6 @@
+{
+  "name": "rune-walk-rom-tests",
+  "private": true,
+  "type": "module",
+  "dependencies": { "jsnes": "2.1.0" }
+}

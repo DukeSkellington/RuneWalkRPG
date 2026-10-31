@@ -1,0 +1,18 @@
+{
+  "packets": 4855,
+  "writes": 28790,
+  "latestLine": 11,
+  "state": {
+    "mode": 1,
+    "area": 1,
+    "hp": 24,
+    "quest": 1,
+    "guardians": 0,
+    "hero": [
+      160,
+      112
+    ],
+    "camera": 40,
+    "pc": "9738"
+  }
+}

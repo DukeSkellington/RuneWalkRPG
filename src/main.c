@@ -1,16 +1,13 @@
 #include "nes.h"
-#include "player.h"
-#include "camera.h"
-
+#include "game.h"
 void main(void)
 {
-    player_init();
-    video_init();
-    for (;;) {
+    u8 pad,old=0,pressed;
+    game_init();
+    for(;;) {
         video_wait();
-        player_update(input_read());
-        camera_update(hero.x);
-        player_draw(camera_x);
-        ready = 1; /* Publish last; NMI owns the packet until it clears this. */
+        pad=input_read(); pressed=pad&~old; old=pad;
+        game_update(pad,pressed);
+        ready=1;
     }
 }
